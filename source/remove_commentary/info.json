@@ -1,0 +1,20 @@
+{
+    "author": "Josh.5,yajrendrag,Taco(edit from  Remove_signs_songs)",
+    "compatibility": [
+        1,
+        2
+    ],
+    "description": "Removes subtitles if it has signs or songs in title tag codec_type = data &/or codec_name = bin_data.",
+    "icon": "https://raw.githubusercontent.com/Josh5/unmanic.plugin.remove_image_subtitles/master/icon.png",
+    "id": "remove_commentary",
+    "name": "remove commentary",
+    "platform": [
+        "all"
+    ],
+    "priorities": {
+        "on_library_management_file_test": 50,
+        "on_worker_process": 1
+    },
+    "tags": "subtitle,data,ffmpeg,library file test",
+    "version": "0.0.1"
+}
