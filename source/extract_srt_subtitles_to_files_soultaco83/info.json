@@ -5,7 +5,7 @@
         2
     ],
     "description": "Extract text based subtitle streams to *.srt files.",
-    "icon": "https://raw.githubusercontent.com/soultaco83/unmanic-plugins/master/source/extract_srt_subtitles_to_files/icon.png",
+    "icon": "https://raw.githubusercontent.com/soultaco83/unmanic-plugins/master/source/extract_srt_subtitles_to_files_soultaco83/icon.png",
     "id": "extract_srt_subtitles_to_files_soultaco83",
     "name": "Extract text subtitle streams to SRT files",
     "platform": [
