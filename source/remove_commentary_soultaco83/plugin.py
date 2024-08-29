@@ -25,10 +25,10 @@ import logging
 
 from unmanic.libs.unplugins.settings import PluginSettings
 
-from keep_songs_signs.lib.ffmpeg import StreamMapper, Probe, Parser
+from remove_songs_signs_soultaco83.lib.ffmpeg import StreamMapper, Probe, Parser
 
 # Configure plugin logger
-logger = logging.getLogger("Unmanic.Plugin.keep_songs_signs")
+logger = logging.getLogger("Unmanic.Plugin.remove_commentary_soultaco83")
 
 
 class Settings(PluginSettings):
@@ -37,33 +37,29 @@ class Settings(PluginSettings):
 
 class PluginStreamMapper(StreamMapper):
     def __init__(self):
-        super(PluginStreamMapper, self).__init__(logger, ['subtitle'])
+        super(PluginStreamMapper, self).__init__(logger, ['audio'])
 
     def test_stream_needs_processing(self, stream_info: dict):
         """Check if file has data streams"""
         data_stream_codec_types = [
-            'subtitle',
+            'audio',
         ]
 
         data_stream_tags = [
-            'songs',
-            'song',
-            'signs',
-            'sign',
-            'S&S',
-            'dub',
-            'dubtitle',
+            'Commentary',
+            'commentary',
+
         ]
 
         for tag in data_stream_tags:
             try:
                 if stream_info.get('codec_type').lower() in data_stream_codec_types and tag in stream_info.get('tags').get('title').lower():
-                    return False
+                    return True
             except AttributeError:
                 if stream_info.get('codec_type').lower() in data_stream_codec_types:
                     return False
-        return True   
-        
+        return False       
+
     def custom_stream_mapping(self, stream_info: dict, stream_id: int):
         """Do not map the streams matched above"""
         return {
@@ -101,9 +97,9 @@ def on_library_management_file_test(data):
     if mapper.streams_need_processing():
         # Mark this file to be added to the pending tasks
         data['add_file_to_pending_tasks'] = True
-        logger.info("File '{}' should be added to task list, File does contain signs or songs.".format(abspath))
+        logger.info("File '{}' should be added to task list. Probe found data streams that require processing.".format(abspath))
     else:
-        logger.info("File '{}' does not contain signs or songs.".format(abspath))
+        logger.info("File '{}' does not contain streams require processing.".format(abspath))
 
     return data
 

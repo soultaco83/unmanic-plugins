@@ -5,8 +5,8 @@
         2
     ],
     "description": "Extract text based subtitle streams to *.ass files.",
-    "icon": "https://raw.githubusercontent.com/Josh5/unmanic.plugin.extract_srt_subtitles_to_files/master/icon.png",
-    "id": "extract_ass_subtitles_to_files",
+    "icon": "https://raw.githubusercontent.com/soultaco83/unmanic-plugins/master/source/extract_ass_subtitles_to_files/icon.png",
+    "id": "extract_ass_subtitles_to_files_soutlaco83",
     "name": "Extract text subtitle streams to ASS/SSA files",
     "platform": [
         "all"
