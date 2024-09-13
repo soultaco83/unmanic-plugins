@@ -162,6 +162,19 @@ class PluginStreamMapper(StreamMapper):
 
 def srt_already_extracted(settings, path):
     logger.debug("Checking if SRT is already extracted for file: %s", path)
+
+    # Check .unmanic file if it exists
+    unmanic_file_path = os.path.join(os.path.dirname(path), '.unmanic')
+    if os.path.exists(unmanic_file_path):
+        directory_info = UnmanicDirectoryInfo(os.path.dirname(path))
+        try:
+            already_extracted = directory_info.get('extract_srt_subtitles_to_files', os.path.basename(path))
+            if already_extracted:
+                logger.debug(f"File's srt subtitle streams were previously extracted according to .unmanic file: {already_extracted}")
+                return True
+        except Exception as e:
+            logger.debug(f"Error reading .unmanic file: {str(e)}")
+
     probe = Probe(logger, allowed_mimetypes=['video'])
     if not probe.file(path):
         logger.debug("File '%s' is not a video file.", path)
@@ -199,8 +212,6 @@ def srt_already_extracted(settings, path):
     else:
         logger.debug(f"No SRT subtitles to extract for file '{path}'. Skipping further processing.")
         return True
-
-
 
 def on_library_management_file_test(data):
     """
