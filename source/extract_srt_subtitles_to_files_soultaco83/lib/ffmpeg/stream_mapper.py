@@ -103,7 +103,7 @@ class StreamMapper(object):
         self.stream_mapping += ['-map', '0:{}:{}'.format(codec_type, stream_id)]
         # Add a encoding flag copying this stream
         self.stream_encoding += ['-c:{}:{}'.format(codec_type, stream_id), 'copy']
-
+       
     def __apply_custom_stream_mapping(self, mapping_dict):
         """
         Apply a custom stream mapping.

@@ -4,7 +4,7 @@
         1,
         2
     ],
-    "description": "Removes subtitles if it has signs or songs in title tag codec_type = data &/or codec_name = bin_data.",
+    "description": "Removes Audio if it has Commentary in title tag",
     "icon": "https://raw.githubusercontent.com/soultaco83/unmanic-plugins/master/source/remove_commentary_soultaco83/icon.png",
     "id": "remove_commentary_soultaco83",
     "name": "remove commentary",

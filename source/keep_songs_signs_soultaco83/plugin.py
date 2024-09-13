@@ -4,11 +4,11 @@
 """
     plugins.__init__.py
 
-    Written by:               Josh.5 <jsunnex@gmail.com>
-    Date:                     24 Mar 2023, (9:38 AM)
+    Written by:               Modified by Soultaco83
+    Date:                     08-29-2024
 
     Copyright:
-        Copyright (C) 2023 Josh Sunnex
+        Copyright (C) 2024 Soultaco83
 
         This program is free software: you can redistribute it and/or modify it under the terms of the GNU General
         Public License as published by the Free Software Foundation, version 3.
