@@ -53,6 +53,7 @@ class PluginStreamMapper(StreamMapper):
             'S&S',
             'dub',
             'dubtitle',
+            'S&S',
         ]
 
         for tag in data_stream_tags:

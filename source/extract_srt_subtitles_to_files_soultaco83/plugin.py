@@ -22,6 +22,7 @@
 import logging
 import os
 import re
+import glob
 
 from unmanic.libs.unplugins.settings import PluginSettings
 from unmanic.libs.directoryinfo import UnmanicDirectoryInfo
@@ -70,7 +71,7 @@ class PluginStreamMapper(StreamMapper):
     def test_stream_needs_processing(self, stream_info: dict):
         """Any text-based subtitles will need to be processed"""
         codec_name = stream_info.get('codec_name', '').lower()
-        if codec_name not in ['srt', 'subrip', 'mov_text']:
+        if codec_name not in ['srt', 'mov_txt', 'subrip']:
             logger.debug("Stream %s does not require processing (codec: %s).", stream_info.get('index'), codec_name)
             return False
 
@@ -93,13 +94,13 @@ class PluginStreamMapper(StreamMapper):
 
     def custom_stream_mapping(self, stream_info: dict, stream_id: int):
         stream_tags = stream_info.get('tags', {})
-    
+        
         # e.g. 'eng', 'fra'
         language_tag = stream_tags.get('language', '').lower()
         logger.debug("Processing stream ID %d with language tag '%s'.", stream_id, language_tag)
-    
+        
         languages = self._get_language_list()
-    
+        
         # Skip stream if not in the specified languages
         if len(languages) > 0 and language_tag not in languages:
             logger.debug("Stream ID %d with language '%s' is not in the extraction list; skipping mapping.", stream_id, language_tag)
@@ -107,25 +108,28 @@ class PluginStreamMapper(StreamMapper):
                 'stream_mapping':  [],
                 'stream_encoding': [],
             }
-    
+        
         # Generate subtitle tag
         # We only use the language tag and append a number (_1, _2, etc.)
         subtitle_tag = language_tag  # Keep only the language code (e.g., 'eng')
         logger.debug("Generated subtitle tag '%s' for stream ID %d.", subtitle_tag, stream_id)
-    
+        
+        # Use a more robust stream specifier
+        stream_specifier = f'0:s:{stream_id}?'
+        
         # Add the stream to the list
         self.sub_streams.append(
             {
                 'stream_id': stream_id,
                 'subtitle_tag': subtitle_tag,
-                'stream_mapping': ['-map', f'0:s:{stream_id}'],
+                'stream_mapping': ['-map', stream_specifier],
             }
         )
         logger.debug("Added stream ID %d to sub_streams with tag '%s'.", stream_id, subtitle_tag)
-    
+        
         # Copy the streams to the destination
         mapping = {
-            'stream_mapping': ['-map', f'0:s:{stream_id}'],
+            'stream_mapping': ['-map', stream_specifier],
             'stream_encoding': ['-c:s:{}'.format(stream_id), 'copy'],
         }
         logger.debug("Stream mapping for stream ID %d: %s", stream_id, mapping)
@@ -161,7 +165,7 @@ class PluginStreamMapper(StreamMapper):
         return args
 
 def srt_already_extracted(settings, path):
-    logger.debug("Checking if SRT is already extracted for file: %s", path)
+    logger.debug("Checking if srt is already extracted for file: %s", path)
 
     # Check .unmanic file if it exists
     unmanic_file_path = os.path.join(os.path.dirname(path), '.unmanic')
@@ -180,37 +184,37 @@ def srt_already_extracted(settings, path):
         logger.debug("File '%s' is not a video file.", path)
         return False
 
-    # Retrieve the format tags (where SRT_SUB is located)
+    # Retrieve the format tags (where srt_SUB is located)
     format_tags = probe.get('format', {}).get('tags', {})
-    subs_tag = format_tags.get('SRT_SUB', '').lower()
+    subs_tag = format_tags.get('srt_SUB', '').lower()
     
-    logger.debug("SRT_SUB tag value for file '%s': '%s'", path, subs_tag)
+    logger.debug("srt_SUB tag value for file '%s': '%s'", path, subs_tag)
     
-    # Check if the file has SRT, SubRip, or MOV_TEXT subtitles
+    # Check if the file has srt, SubRip, or MOV_TEXT subtitles
     has_target_subtitles = False
     streams = probe.get('streams', [])
     for stream in streams:
         if stream.get('codec_type') == 'subtitle':
             codec_name = stream.get('codec_name', '').lower()
-            if codec_name in ['srt', 'subrip', 'mov_text']:
+            if codec_name in ['srt', 'mov_txt', 'subrip']:
                 has_target_subtitles = True
                 break
 
-    # Check for existing SRT files
+    # Check for existing srt files
     base_path = os.path.splitext(path)[0]
     existing_srt_files = glob.glob(f"{base_path}.*.srt")
     
     if subs_tag == 'extracted' and existing_srt_files:
-        logger.debug(f"SRT subtitles have already been extracted and tagged for file '{path}'. Skipping further processing.")
+        logger.debug(f"srt subtitles have already been extracted and tagged for file '{path}'. Skipping further processing.")
         return True
     elif existing_srt_files:
-        logger.debug(f"SRT files exist for file '{path}'. Skipping extraction due to existing SRT files.")
+        logger.debug(f"srt files exist for file '{path}'. Skipping extraction due to existing srt files.")
         return True
     elif not existing_srt_files and not subs_tag == 'extracted' and has_target_subtitles:
-        logger.debug(f"No SRT files or SRT_SUB tag, but target subtitles found for file '{path}'. Proceeding with subtitle extraction.")
+        logger.debug(f"No srt files or srt_SUB tag, but target subtitles found for file '{path}'. Proceeding with subtitle extraction.")
         return False
     else:
-        logger.debug(f"No SRT subtitles to extract for file '{path}'. Skipping further processing.")
+        logger.debug(f"No srt subtitles to extract for file '{path}'. Skipping further processing.")
         return True
 
 def on_library_management_file_test(data):
@@ -229,7 +233,6 @@ def on_library_management_file_test(data):
         data['add_file_to_pending_tasks'] = True
         logger.debug(f"File '{abspath}' is added to pending tasks. It needs subtitle extraction.")
     else:
-        data['add_file_to_pending_tasks'] = False
         logger.debug(f"File '{abspath}' is not added to pending tasks. No subtitle extraction needed.")
     
     return data
@@ -238,10 +241,10 @@ import subprocess  # Add this import
 
 def get_unique_srt_filename(base_path, subtitle_tag, stream_index):
     """
-    Generate a unique SRT filename with Unmanic prefix.
+    Generate a unique srt filename with Unmanic prefix.
     """
     srt_filename = f"{base_path}.unmanic.{subtitle_tag}.{stream_index}.srt"
-    logger.debug(f"Generated SRT filename: {srt_filename}")
+    logger.debug(f"Generated srt filename: {srt_filename}")
     return srt_filename
 
 def on_worker_process(data):
@@ -268,8 +271,10 @@ def on_worker_process(data):
     settings = Settings(library_id=data.get('library_id', None))
     logger.debug("Initialized settings with library_id: %s", data.get('library_id', None))
     
-    if srt_already_extracted(settings, abspath):
-        logger.debug("Skipping processing for file '%s' as SRT is already extracted or no processing needed.", abspath)
+    if srt_already_extracted(settings, abspath):  # Corrected function name
+        logger.debug("Skipping processing for file '%s' as srt is already extracted or no processing needed.", abspath)
+        # Set exec_command to None to signal that no processing is needed
+        data['exec_command'] = None
         return data
 
     # Proceed with the subtitle extraction process
@@ -289,7 +294,7 @@ def on_worker_process(data):
         ffmpeg_args = mapper.get_ffmpeg_args()
         logger.debug("Generated ffmpeg args: %s", ffmpeg_args)
 
-        # Add SRT extract args
+        # Add srt extract args
         base_path = os.path.splitext(data.get('original_file_path'))[0]
         logger.debug("Base path: %s", base_path)
 
@@ -299,9 +304,9 @@ def on_worker_process(data):
             stream_index = sub_stream.get('stream_id')
             logger.debug("Processing sub_stream: %s", sub_stream)
 
-            # Get a unique SRT filename
+            # Get a unique srt filename
             output_srt = get_unique_srt_filename(base_path, subtitle_tag, stream_index)
-            logger.debug("SRT filename for subtitle tag '%s': %s", subtitle_tag, output_srt)
+            logger.debug("srt filename for subtitle tag '%s': %s", subtitle_tag, output_srt)
 
             ffmpeg_args += stream_mapping          
             ffmpeg_args += [
@@ -321,13 +326,25 @@ def on_worker_process(data):
         data['command_progress_parser'] = parser.parse_progress
         logger.debug("Command progress parser set.")
 
-        # Update metadata after extraction
+        # Execute FFmpeg command
+        try:
+            result = subprocess.run(data['exec_command'], check=True, capture_output=True, text=True)
+            logger.debug("FFmpeg command executed successfully.")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"FFmpeg command failed: {e}")
+            logger.debug(f"FFmpeg stderr: {e.stderr}")
+            # If the error is due to stream mapping, we can ignore it and continue
+            if "Stream map '0:s:" in e.stderr and "matches no streams" in e.stderr:
+                logger.warning("Some stream mappings failed, but continuing with metadata update.")
+            else:
+                return data  # Exit if there's an unexpected error
+
         # Update metadata after extraction
         temp_output = abspath.replace(".mkv", "_temp.mkv")
         metadata_command = [
             'ffmpeg', '-i', abspath,
             '-map_metadata', '0',
-            '-metadata', 'SRT_SUB=extracted',
+            '-metadata', 'srt_SUB=extracted',
             '-c', 'copy',
             '-y',
             temp_output
@@ -338,7 +355,7 @@ def on_worker_process(data):
             subprocess.run(metadata_command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             logger.debug("Metadata command executed successfully.")
             os.replace(temp_output, abspath)
-            logger.debug(f"Metadata 'SRT_SUB=extracted' added to {abspath} and original file replaced.")
+            logger.debug(f"Metadata 'srt_SUB=extracted' added to {abspath} and original file replaced.")
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to set metadata on {abspath}: {str(e)}")
             if e.stderr:
@@ -351,3 +368,4 @@ def on_worker_process(data):
         logger.debug("Streams do not need processing for file '%s'.", abspath)
 
     return data
+    

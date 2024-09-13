@@ -22,6 +22,7 @@
 import logging
 import os
 import re
+import glob
 
 from unmanic.libs.unplugins.settings import PluginSettings
 from unmanic.libs.directoryinfo import UnmanicDirectoryInfo
@@ -93,13 +94,13 @@ class PluginStreamMapper(StreamMapper):
 
     def custom_stream_mapping(self, stream_info: dict, stream_id: int):
         stream_tags = stream_info.get('tags', {})
-    
+        
         # e.g. 'eng', 'fra'
         language_tag = stream_tags.get('language', '').lower()
         logger.debug("Processing stream ID %d with language tag '%s'.", stream_id, language_tag)
-    
+        
         languages = self._get_language_list()
-    
+        
         # Skip stream if not in the specified languages
         if len(languages) > 0 and language_tag not in languages:
             logger.debug("Stream ID %d with language '%s' is not in the extraction list; skipping mapping.", stream_id, language_tag)
@@ -107,25 +108,28 @@ class PluginStreamMapper(StreamMapper):
                 'stream_mapping':  [],
                 'stream_encoding': [],
             }
-    
+        
         # Generate subtitle tag
         # We only use the language tag and append a number (_1, _2, etc.)
         subtitle_tag = language_tag  # Keep only the language code (e.g., 'eng')
         logger.debug("Generated subtitle tag '%s' for stream ID %d.", subtitle_tag, stream_id)
-    
+        
+        # Use a more robust stream specifier
+        stream_specifier = f'0:s:{stream_id}?'
+        
         # Add the stream to the list
         self.sub_streams.append(
             {
                 'stream_id': stream_id,
                 'subtitle_tag': subtitle_tag,
-                'stream_mapping': ['-map', f'0:s:{stream_id}'],
+                'stream_mapping': ['-map', stream_specifier],
             }
         )
         logger.debug("Added stream ID %d to sub_streams with tag '%s'.", stream_id, subtitle_tag)
-    
+        
         # Copy the streams to the destination
         mapping = {
-            'stream_mapping': ['-map', f'0:s:{stream_id}'],
+            'stream_mapping': ['-map', stream_specifier],
             'stream_encoding': ['-c:s:{}'.format(stream_id), 'copy'],
         }
         logger.debug("Stream mapping for stream ID %d: %s", stream_id, mapping)
@@ -162,6 +166,19 @@ class PluginStreamMapper(StreamMapper):
 
 def ass_already_extracted(settings, path):
     logger.debug("Checking if ass is already extracted for file: %s", path)
+
+    # Check .unmanic file if it exists
+    unmanic_file_path = os.path.join(os.path.dirname(path), '.unmanic')
+    if os.path.exists(unmanic_file_path):
+        directory_info = UnmanicDirectoryInfo(os.path.dirname(path))
+        try:
+            already_extracted = directory_info.get('extract_ass_subtitles_to_files', os.path.basename(path))
+            if already_extracted:
+                logger.debug(f"File's ass subtitle streams were previously extracted according to .unmanic file: {already_extracted}")
+                return True
+        except Exception as e:
+            logger.debug(f"Error reading .unmanic file: {str(e)}")
+
     probe = Probe(logger, allowed_mimetypes=['video'])
     if not probe.file(path):
         logger.debug("File '%s' is not a video file.", path)
@@ -179,7 +196,7 @@ def ass_already_extracted(settings, path):
     for stream in streams:
         if stream.get('codec_type') == 'subtitle':
             codec_name = stream.get('codec_name', '').lower()
-            if codec_name in ['ass', 'subrip', 'mov_text']:
+            if codec_name in ['ass', 'ssa']:
                 has_target_subtitles = True
                 break
 
@@ -200,8 +217,6 @@ def ass_already_extracted(settings, path):
         logger.debug(f"No ass subtitles to extract for file '{path}'. Skipping further processing.")
         return True
 
-
-
 def on_library_management_file_test(data):
     """
     Runner function - enables additional actions during the library management file tests.
@@ -218,7 +233,6 @@ def on_library_management_file_test(data):
         data['add_file_to_pending_tasks'] = True
         logger.debug(f"File '{abspath}' is added to pending tasks. It needs subtitle extraction.")
     else:
-        data['add_file_to_pending_tasks'] = False
         logger.debug(f"File '{abspath}' is not added to pending tasks. No subtitle extraction needed.")
     
     return data
@@ -257,8 +271,10 @@ def on_worker_process(data):
     settings = Settings(library_id=data.get('library_id', None))
     logger.debug("Initialized settings with library_id: %s", data.get('library_id', None))
     
-    if ass_already_extracted(settings, abspath):
-        logger.debug("Skipping processing for file '%s' as ass is already extracted or no processing needed.", abspath)
+    if ass_already_extracted(settings, abspath):  # Corrected function name
+        logger.debug("Skipping processing for file '%s' as ASS is already extracted or no processing needed.", abspath)
+        # Set exec_command to None to signal that no processing is needed
+        data['exec_command'] = None
         return data
 
     # Proceed with the subtitle extraction process
@@ -278,7 +294,7 @@ def on_worker_process(data):
         ffmpeg_args = mapper.get_ffmpeg_args()
         logger.debug("Generated ffmpeg args: %s", ffmpeg_args)
 
-        # Add ass extract args
+        # Add ASS extract args
         base_path = os.path.splitext(data.get('original_file_path'))[0]
         logger.debug("Base path: %s", base_path)
 
@@ -288,9 +304,9 @@ def on_worker_process(data):
             stream_index = sub_stream.get('stream_id')
             logger.debug("Processing sub_stream: %s", sub_stream)
 
-            # Get a unique ass filename
+            # Get a unique ASS filename
             output_ass = get_unique_ass_filename(base_path, subtitle_tag, stream_index)
-            logger.debug("ass filename for subtitle tag '%s': %s", subtitle_tag, output_ass)
+            logger.debug("ASS filename for subtitle tag '%s': %s", subtitle_tag, output_ass)
 
             ffmpeg_args += stream_mapping          
             ffmpeg_args += [
@@ -310,7 +326,19 @@ def on_worker_process(data):
         data['command_progress_parser'] = parser.parse_progress
         logger.debug("Command progress parser set.")
 
-        # Update metadata after extraction
+        # Execute FFmpeg command
+        try:
+            result = subprocess.run(data['exec_command'], check=True, capture_output=True, text=True)
+            logger.debug("FFmpeg command executed successfully.")
+        except subprocess.CalledProcessError as e:
+            logger.error(f"FFmpeg command failed: {e}")
+            logger.debug(f"FFmpeg stderr: {e.stderr}")
+            # If the error is due to stream mapping, we can ignore it and continue
+            if "Stream map '0:s:" in e.stderr and "matches no streams" in e.stderr:
+                logger.warning("Some stream mappings failed, but continuing with metadata update.")
+            else:
+                return data  # Exit if there's an unexpected error
+
         # Update metadata after extraction
         temp_output = abspath.replace(".mkv", "_temp.mkv")
         metadata_command = [
@@ -340,3 +368,4 @@ def on_worker_process(data):
         logger.debug("Streams do not need processing for file '%s'.", abspath)
 
     return data
+    
