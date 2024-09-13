@@ -10,6 +10,8 @@ on:
     branches:
       - 'official'
       - 'master'
+  workflow_dispatch:  # Allows manual triggering of the workflow
+
 
 jobs:
 
