@@ -1,3 +1,7 @@
+**<span style="color:#56adda">0.0.2</span>**
+- Removed unused "Include title in output file name" field
+- Added a check to process regardless of previous extraction results
+
 **<span style="color:#56adda">0.0.1</span>**
 - Initial version
 - Fork from Josh5 extract_srt_subtitles_to_files

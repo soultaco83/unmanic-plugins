@@ -35,7 +35,7 @@ logger = logging.getLogger("Unmanic.Plugin.extract_ass_subtitles_to_files_soulta
 class Settings(PluginSettings):
     settings = {
         "languages_to_extract": "",
-        "include_title_in_output_file_name": True
+        "extract_regardless": False
     }
 
     def __init__(self, *args, **kwargs):
@@ -45,8 +45,8 @@ class Settings(PluginSettings):
             "languages_to_extract": {
                 "label": "Subtitle languages to extract (leave empty for all)",
             },
-            "include_title_in_output_file_name": {
-                "label": "Include title in output file name",
+            "extract_regardless": {
+                "label": "Extract regardless if ASS file exists, if already processed via a .unmanic, or ASS_SUB existing",
             },
         }
 
@@ -203,8 +203,10 @@ def ass_already_extracted(settings, path):
     # Check for existing ass files
     base_path = os.path.splitext(path)[0]
     existing_ass_files = glob.glob(f"{base_path}.*.ass")
-    
-    if subs_tag == 'extracted' and existing_ass_files:
+    if settings.get_setting('extract_regardless'):
+        logger.debug("Plugin configured to extract regardless of previous extraction")
+        return False
+    elif subs_tag == 'extracted' and existing_srt_files:
         logger.debug(f"ass subtitles have already been extracted and tagged for file '{path}'. Skipping further processing.")
         return True
     elif existing_ass_files:
