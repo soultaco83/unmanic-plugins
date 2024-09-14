@@ -71,7 +71,7 @@ class PluginStreamMapper(StreamMapper):
     def test_stream_needs_processing(self, stream_info: dict):
         """Any text-based subtitles will need to be processed"""
         codec_name = stream_info.get('codec_name', '').lower()
-        if codec_name not in ['srt', 'mov_txt', 'subrip']:
+        if codec_name not in ['srt', 'mov_text', 'subrip']:
             logger.debug("Stream %s does not require processing (codec: %s).", stream_info.get('index'), codec_name)
             return False
 
@@ -196,14 +196,19 @@ def srt_already_extracted(settings, path):
     for stream in streams:
         if stream.get('codec_type') == 'subtitle':
             codec_name = stream.get('codec_name', '').lower()
-            if codec_name in ['srt', 'mov_txt', 'subrip']:
+            if codec_name in ['srt', 'mov_text', 'subrip']:
                 has_target_subtitles = True
                 break
 
     # Check for existing srt files
     base_path = os.path.splitext(path)[0]
+    file_extension = os.path.splitext(path)[-1][1:]
+    file_extension = file_extension.lower()
     existing_srt_files = glob.glob(f"{base_path}.*.srt")
-    if settings.get_setting('extract_regardless'):
+    if file_extension and file_extension.lower() != 'mkv':
+        logger.error(f"File '{path}' is not MKV format")
+        return True
+    elif settings.get_setting('extract_regardless'):
         logger.debug("Plugin configured to extract regardless of previous extraction")
         return False
     elif subs_tag == 'extracted' and existing_srt_files:
@@ -252,6 +257,22 @@ def get_unique_srt_filename(base_path, subtitle_tag, stream_index):
 def on_worker_process(data):
     """
     Runner function - enables additional configured processing jobs during the worker stages of a task.
+
+    The 'data' object argument includes:
+        exec_command            - A command that Unmanic should execute. Can be empty.
+        command_progress_parser - A function that Unmanic can use to parse the STDOUT of the command to collect progress stats. Can be empty.
+        file_in                 - The source file to be processed by the command.
+        file_out                - The destination that the command should output (may be the same as the file_in if necessary).
+        original_file_path      - The absolute path to the original file.
+        repeat                  - Boolean, should this runner be executed again once completed with the same variables.
+
+    DEPRECIATED 'data' object args passed for legacy Unmanic versions:
+        exec_ffmpeg             - Boolean, should Unmanic run FFMPEG with the data returned from this plugin.
+        ffmpeg_args             - A list of Unmanic's default FFMPEG args.
+
+    :param data:
+    :return:
+
     """
     logger.debug("Running on_worker_process for data: %s", data)
     
@@ -273,7 +294,7 @@ def on_worker_process(data):
     settings = Settings(library_id=data.get('library_id', None))
     logger.debug("Initialized settings with library_id: %s", data.get('library_id', None))
     
-    if srt_already_extracted(settings, abspath):  # Corrected function name
+    if srt_already_extracted(settings, abspath):
         logger.debug("Skipping processing for file '%s' as srt is already extracted or no processing needed.", abspath)
         # Set exec_command to None to signal that no processing is needed
         data['exec_command'] = None
@@ -295,7 +316,7 @@ def on_worker_process(data):
         # Get generated ffmpeg args
         ffmpeg_args = mapper.get_ffmpeg_args()
         logger.debug("Generated ffmpeg args: %s", ffmpeg_args)
-
+        
         # Add srt extract args
         base_path = os.path.splitext(data.get('original_file_path'))[0]
         logger.debug("Base path: %s", base_path)
@@ -340,9 +361,19 @@ def on_worker_process(data):
                 logger.warning("Some stream mappings failed, but continuing with metadata update.")
             else:
                 return data  # Exit if there's an unexpected error
+        
+        
 
-        # Update metadata after extraction
-        temp_output = abspath.replace(".mkv", "_temp.mkv")
+        # Extract file extension
+        file_extension = os.path.splitext(abspath)[-1][1:].lower()
+        logger.debug(f"File extension: {file_extension}")
+
+        # Update MKV metadata
+        file_name = os.path.basename(abspath)
+        file_name_without_ext = os.path.splitext(file_name)[0]
+        temp_output = os.path.join(os.path.dirname(abspath), f"{file_name_without_ext}_temp.mkv")
+        logger.debug(f"Temporary output file: {temp_output}")
+
         metadata_command = [
             'ffmpeg', '-i', abspath,
             '-map_metadata', '0',
@@ -370,4 +401,3 @@ def on_worker_process(data):
         logger.debug("Streams do not need processing for file '%s'.", abspath)
 
     return data
-    

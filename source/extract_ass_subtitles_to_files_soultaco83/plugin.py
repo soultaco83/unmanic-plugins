@@ -46,7 +46,7 @@ class Settings(PluginSettings):
                 "label": "Subtitle languages to extract (leave empty for all)",
             },
             "extract_regardless": {
-                "label": "Extract regardless if ASS file exists, if already processed via a .unmanic, or ASS_SUB existing",
+                "label": "Extract regardless if ASS/SSA file exists, if already processed via a .unmanic, or ass_SUB existing",
             },
         }
 
@@ -165,7 +165,7 @@ class PluginStreamMapper(StreamMapper):
         return args
 
 def ass_already_extracted(settings, path):
-    logger.debug("Checking if ass is already extracted for file: %s", path)
+    logger.debug("Checking if ASS/SSA is already extracted for file: %s", path)
 
     # Check .unmanic file if it exists
     unmanic_file_path = os.path.join(os.path.dirname(path), '.unmanic')
@@ -174,7 +174,7 @@ def ass_already_extracted(settings, path):
         try:
             already_extracted = directory_info.get('extract_ass_subtitles_to_files', os.path.basename(path))
             if already_extracted:
-                logger.debug(f"File's ass subtitle streams were previously extracted according to .unmanic file: {already_extracted}")
+                logger.debug(f"File's ASS/SSA subtitle streams were previously extracted according to .unmanic file: {already_extracted}")
                 return True
         except Exception as e:
             logger.debug(f"Error reading .unmanic file: {str(e)}")
@@ -190,7 +190,7 @@ def ass_already_extracted(settings, path):
     
     logger.debug("ass_SUB tag value for file '%s': '%s'", path, subs_tag)
     
-    # Check if the file has ass, SubRip, or MOV_TEXT subtitles
+    # Check if the file has ASS/SSA subtitles
     has_target_subtitles = False
     streams = probe.get('streams', [])
     for stream in streams:
@@ -200,23 +200,28 @@ def ass_already_extracted(settings, path):
                 has_target_subtitles = True
                 break
 
-    # Check for existing ass files
+    # Check for existing ASS/SSA files
     base_path = os.path.splitext(path)[0]
+    file_extension = os.path.splitext(path)[-1][1:]
+    file_extension = file_extension.lower()
     existing_ass_files = glob.glob(f"{base_path}.*.ass")
-    if settings.get_setting('extract_regardless'):
+    if file_extension and file_extension.lower() != 'mkv':
+        logger.error(f"File '{path}' is not MKV format")
+        return True
+    elif settings.get_setting('extract_regardless'):
         logger.debug("Plugin configured to extract regardless of previous extraction")
         return False
-    elif subs_tag == 'extracted' and existing_srt_files:
-        logger.debug(f"ass subtitles have already been extracted and tagged for file '{path}'. Skipping further processing.")
+    elif subs_tag == 'extracted' and existing_ass_files:
+        logger.debug(f"ASS/SSA subtitles have already been extracted and tagged for file '{path}'. Skipping further processing.")
         return True
     elif existing_ass_files:
-        logger.debug(f"ass files exist for file '{path}'. Skipping extraction due to existing ass files.")
+        logger.debug(f"ASS/SSA files exist for file '{path}'. Skipping extraction due to existing ASS/SSA files.")
         return True
     elif not existing_ass_files and not subs_tag == 'extracted' and has_target_subtitles:
-        logger.debug(f"No ass files or ass_SUB tag, but target subtitles found for file '{path}'. Proceeding with subtitle extraction.")
+        logger.debug(f"No ASS/SSA files or ass_SUB tag, but target subtitles found for file '{path}'. Proceeding with subtitle extraction.")
         return False
     else:
-        logger.debug(f"No ass subtitles to extract for file '{path}'. Skipping further processing.")
+        logger.debug(f"No ASS/SSA subtitles to extract for file '{path}'. Skipping further processing.")
         return True
 
 def on_library_management_file_test(data):
@@ -243,15 +248,31 @@ import subprocess  # Add this import
 
 def get_unique_ass_filename(base_path, subtitle_tag, stream_index):
     """
-    Generate a unique ass filename with Unmanic prefix.
+    Generate a unique ASS/SSA filename with Unmanic prefix.
     """
     ass_filename = f"{base_path}.unmanic.{subtitle_tag}.{stream_index}.ass"
-    logger.debug(f"Generated ass filename: {ass_filename}")
+    logger.debug(f"Generated ASS/SSA filename: {ass_filename}")
     return ass_filename
 
 def on_worker_process(data):
     """
     Runner function - enables additional configured processing jobs during the worker stages of a task.
+
+    The 'data' object argument includes:
+        exec_command            - A command that Unmanic should execute. Can be empty.
+        command_progress_parser - A function that Unmanic can use to parse the STDOUT of the command to collect progress stats. Can be empty.
+        file_in                 - The source file to be processed by the command.
+        file_out                - The destination that the command should output (may be the same as the file_in if necessary).
+        original_file_path      - The absolute path to the original file.
+        repeat                  - Boolean, should this runner be executed again once completed with the same variables.
+
+    DEPRECIATED 'data' object args passed for legacy Unmanic versions:
+        exec_ffmpeg             - Boolean, should Unmanic run FFMPEG with the data returned from this plugin.
+        ffmpeg_args             - A list of Unmanic's default FFMPEG args.
+
+    :param data:
+    :return:
+
     """
     logger.debug("Running on_worker_process for data: %s", data)
     
@@ -273,8 +294,8 @@ def on_worker_process(data):
     settings = Settings(library_id=data.get('library_id', None))
     logger.debug("Initialized settings with library_id: %s", data.get('library_id', None))
     
-    if ass_already_extracted(settings, abspath):  # Corrected function name
-        logger.debug("Skipping processing for file '%s' as ASS is already extracted or no processing needed.", abspath)
+    if ass_already_extracted(settings, abspath):
+        logger.debug("Skipping processing for file '%s' as ASS/SSA is already extracted or no processing needed.", abspath)
         # Set exec_command to None to signal that no processing is needed
         data['exec_command'] = None
         return data
@@ -295,8 +316,8 @@ def on_worker_process(data):
         # Get generated ffmpeg args
         ffmpeg_args = mapper.get_ffmpeg_args()
         logger.debug("Generated ffmpeg args: %s", ffmpeg_args)
-
-        # Add ASS extract args
+        
+        # Add ASS/SSA extract args
         base_path = os.path.splitext(data.get('original_file_path'))[0]
         logger.debug("Base path: %s", base_path)
 
@@ -306,7 +327,7 @@ def on_worker_process(data):
             stream_index = sub_stream.get('stream_id')
             logger.debug("Processing sub_stream: %s", sub_stream)
 
-            # Get a unique ASS filename
+            # Get a unique ass filename
             output_ass = get_unique_ass_filename(base_path, subtitle_tag, stream_index)
             logger.debug("ASS filename for subtitle tag '%s': %s", subtitle_tag, output_ass)
 
@@ -340,9 +361,19 @@ def on_worker_process(data):
                 logger.warning("Some stream mappings failed, but continuing with metadata update.")
             else:
                 return data  # Exit if there's an unexpected error
+        
+        
 
-        # Update metadata after extraction
-        temp_output = abspath.replace(".mkv", "_temp.mkv")
+        # Extract file extension
+        file_extension = os.path.splitext(abspath)[-1][1:].lower()
+        logger.debug(f"File extension: {file_extension}")
+
+        # Update MKV metadata
+        file_name = os.path.basename(abspath)
+        file_name_without_ext = os.path.splitext(file_name)[0]
+        temp_output = os.path.join(os.path.dirname(abspath), f"{file_name_without_ext}_temp.mkv")
+        logger.debug(f"Temporary output file: {temp_output}")
+
         metadata_command = [
             'ffmpeg', '-i', abspath,
             '-map_metadata', '0',
@@ -370,4 +401,3 @@ def on_worker_process(data):
         logger.debug("Streams do not need processing for file '%s'.", abspath)
 
     return data
-    
