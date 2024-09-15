@@ -46,7 +46,7 @@ class Settings(PluginSettings):
                 "label": "Subtitle languages to extract (leave empty for all)",
             },
             "extract_regardless": {
-                "label": "Extract regardless if ASS/SSA file exists, if already processed via a .unmanic, or ass_SUB existing",
+                "label": "Extract regardless if ASS/SSA file exists, if already processed via a .unmanic, or ASS_SUB existing",
             },
         }
 
@@ -184,11 +184,11 @@ def ass_already_extracted(settings, path):
         logger.debug("File '%s' is not a video file.", path)
         return False
 
-    # Retrieve the format tags (where ass_SUB is located)
+    # Retrieve the format tags (where ASS_SUB is located)
     format_tags = probe.get('format', {}).get('tags', {})
-    subs_tag = format_tags.get('ass_SUB', '').lower()
+    subs_tag = format_tags.get('ASS_SUB', '').lower()
     
-    logger.debug("ass_SUB tag value for file '%s': '%s'", path, subs_tag)
+    logger.debug("ASS_SUB tag value for file '%s': '%s'", path, subs_tag)
     
     # Check if the file has ASS/SSA subtitles
     has_target_subtitles = False
@@ -218,7 +218,7 @@ def ass_already_extracted(settings, path):
         logger.debug(f"ASS/SSA files exist for file '{path}'. Skipping extraction due to existing ASS/SSA files.")
         return True
     elif not existing_ass_files and not subs_tag == 'extracted' and has_target_subtitles:
-        logger.debug(f"No ASS/SSA files or ass_SUB tag, but target subtitles found for file '{path}'. Proceeding with subtitle extraction.")
+        logger.debug(f"No ASS/SSA files or ASS_SUB tag, but target subtitles found for file '{path}'. Proceeding with subtitle extraction.")
         return False
     else:
         logger.debug(f"No ASS/SSA subtitles to extract for file '{path}'. Skipping further processing.")
@@ -377,7 +377,7 @@ def on_worker_process(data):
         metadata_command = [
             'ffmpeg', '-i', abspath,
             '-map_metadata', '0',
-            '-metadata', 'ass_SUB=extracted',
+            '-metadata', 'ASS_SUB=extracted',
             '-c', 'copy',
             '-y',
             temp_output
@@ -388,7 +388,7 @@ def on_worker_process(data):
             subprocess.run(metadata_command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             logger.debug("Metadata command executed successfully.")
             os.replace(temp_output, abspath)
-            logger.debug(f"Metadata 'ass_SUB=extracted' added to {abspath} and original file replaced.")
+            logger.debug(f"Metadata 'ASS_SUB=extracted' added to {abspath} and original file replaced.")
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to set metadata on {abspath}: {str(e)}")
             if e.stderr:

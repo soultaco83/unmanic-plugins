@@ -184,11 +184,11 @@ def srt_already_extracted(settings, path):
         logger.debug("File '%s' is not a video file.", path)
         return False
 
-    # Retrieve the format tags (where srt_SUB is located)
+    # Retrieve the format tags (where SRT_SUB is located)
     format_tags = probe.get('format', {}).get('tags', {})
-    subs_tag = format_tags.get('srt_SUB', '').lower()
+    subs_tag = format_tags.get('SRT_SUB', '').lower()
     
-    logger.debug("srt_SUB tag value for file '%s': '%s'", path, subs_tag)
+    logger.debug("SRT_SUB tag value for file '%s': '%s'", path, subs_tag)
     
     # Check if the file has srt, SubRip, or MOV_TEXT subtitles
     has_target_subtitles = False
@@ -218,7 +218,7 @@ def srt_already_extracted(settings, path):
         logger.debug(f"srt files exist for file '{path}'. Skipping extraction due to existing srt files.")
         return True
     elif not existing_srt_files and not subs_tag == 'extracted' and has_target_subtitles:
-        logger.debug(f"No srt files or srt_SUB tag, but target subtitles found for file '{path}'. Proceeding with subtitle extraction.")
+        logger.debug(f"No srt files or SRT_SUB tag, but target subtitles found for file '{path}'. Proceeding with subtitle extraction.")
         return False
     else:
         logger.debug(f"No srt subtitles to extract for file '{path}'. Skipping further processing.")
@@ -377,7 +377,7 @@ def on_worker_process(data):
         metadata_command = [
             'ffmpeg', '-i', abspath,
             '-map_metadata', '0',
-            '-metadata', 'srt_SUB=extracted',
+            '-metadata', 'SRT_SUB=extracted',
             '-c', 'copy',
             '-y',
             temp_output
@@ -388,7 +388,7 @@ def on_worker_process(data):
             subprocess.run(metadata_command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             logger.debug("Metadata command executed successfully.")
             os.replace(temp_output, abspath)
-            logger.debug(f"Metadata 'srt_SUB=extracted' added to {abspath} and original file replaced.")
+            logger.debug(f"Metadata 'SRT_SUB=extracted' added to {abspath} and original file replaced.")
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to set metadata on {abspath}: {str(e)}")
             if e.stderr:
