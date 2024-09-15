@@ -1,3 +1,6 @@
+**<span style="color:#56adda">0.0.3</span>**
+- Fixed tagging error. Changed srt_SUB to SRT_SUB
+
 **<span style="color:#56adda">0.0.2</span>**
 - Removed unused "Include title in output file name" field
 - Added a check to process regardless of previous extraction results
