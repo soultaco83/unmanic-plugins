@@ -23,6 +23,7 @@ import logging
 import os
 import re
 import glob
+import shutil
 
 from unmanic.libs.unplugins.settings import PluginSettings
 from unmanic.libs.directoryinfo import UnmanicDirectoryInfo
@@ -362,18 +363,22 @@ def on_worker_process(data):
             else:
                 return data  # Exit if there's an unexpected error
         
-        
-
         # Extract file extension
         file_extension = os.path.splitext(abspath)[-1][1:].lower()
         logger.debug(f"File extension: {file_extension}")
-
-        # Update MKV metadata
+        
+        # Use the cache directory provided by Unmanic
+        cache_directory = os.path.dirname(data.get('file_out'))
+        if not os.path.exists(cache_directory):
+            os.makedirs(cache_directory)
+        logger.debug(f"Cache directory: {cache_directory}")
+        
+        # Create a temporary file in the cache directory
         file_name = os.path.basename(abspath)
         file_name_without_ext = os.path.splitext(file_name)[0]
-        temp_output = os.path.join(os.path.dirname(abspath), f"{file_name_without_ext}_temp.mkv")
+        temp_output = os.path.join(cache_directory, f"{file_name_without_ext}_temp.mkv")
         logger.debug(f"Temporary output file: {temp_output}")
-
+        
         metadata_command = [
             'ffmpeg', '-i', abspath,
             '-map_metadata', '0',
@@ -387,8 +392,10 @@ def on_worker_process(data):
             logger.debug("Running metadata command for file '%s'.", abspath)
             subprocess.run(metadata_command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             logger.debug("Metadata command executed successfully.")
-            os.replace(temp_output, abspath)
-            logger.debug(f"Metadata 'ASS_SUB=extracted' added to {abspath} and original file replaced.")
+            
+            # Replace the original file with the temporary file
+            shutil.move(temp_output, abspath)
+            logger.debug(f"Metadata 'SRT_SUB=extracted' added to {abspath} and original file replaced.")
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to set metadata on {abspath}: {str(e)}")
             if e.stderr:
