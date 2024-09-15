@@ -1,0 +1,19 @@
+{
+    "author": "Soultaco83(Modified from Josh.5, Bambanah",
+    "compatibility": [
+        1,
+        2
+    ],
+    "description": "Extract ASS/SSA subtitle streams to *.ass files.",
+    "icon": "https://raw.githubusercontent.com/soultaco83/unmanic-plugins/master/source/extract_ass_subtitles_to_files_soultaco83/icon.png",
+    "id": "extract_ass_subtitles_to_files_soultaco83",
+    "name": "Extract text subtitle streams to ASS/SSA files",
+    "platform": [
+        "all"
+    ],
+    "priorities": {
+        "on_worker_process": 2
+    },
+    "tags": "subtitle,ffmpeg",
+    "version": "0.0.4"
+}
